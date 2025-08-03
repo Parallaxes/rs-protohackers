@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    'driver',
+    'p00-smoke-test',
+]
