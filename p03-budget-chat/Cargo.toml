@@ -1,5 +1,5 @@
 [package]
-name = "p00-smoke-test"
+name = "p03-budget-chat"
 version = "0.1.0"
 edition = "2024"
 

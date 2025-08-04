@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    'driver',
-    'p00-smoke-test',
+    "server",
+    "p00-smoke-test", "p01-prime-time", "p02-means-to-an-end", "p03-budget-chat",
 ]
