@@ -1,19 +1,18 @@
-mod protocol;
 mod prime;
+mod protocol;
 
+use server::{Metrics, run_tcp};
 use std::{error::Error, net::SocketAddr};
-use server::{run_tcp, Metrics};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
-use crate::protocol::*;
 use crate::prime::is_prime;
-
+use crate::protocol::*;
 
 async fn prime_handler(
     stream: TcpStream,
     addr: SocketAddr,
-    metrics: Metrics
+    metrics: Metrics,
 ) -> Result<(), Box<dyn Error>> {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
@@ -35,7 +34,10 @@ async fn prime_handler(
                     Ok(request) if request.is_valid() => {
                         if let Some(number) = request.get_number() {
                             let prime_result = is_prime(number);
-                            server::log_info!(addr, format!("isPrime({}) = {}", number, prime_result));
+                            server::log_info!(
+                                addr,
+                                format!("isPrime({}) = {}", number, prime_result)
+                            );
                             serialize_response(&Response::new(prime_result))?
                         } else {
                             server::log_warning!(addr, "Invalid number in request");

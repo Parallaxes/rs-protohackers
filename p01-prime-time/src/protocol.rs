@@ -41,7 +41,7 @@ impl MalformedResponse {
     pub fn new() -> Self {
         Self {
             method: "isPrime".to_string(),
-            error: "malformed request".to_string()
+            error: "malformed request".to_string(),
         }
     }
 }

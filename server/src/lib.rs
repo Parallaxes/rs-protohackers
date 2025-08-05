@@ -1,13 +1,13 @@
-use tokio::net::{TcpListener, TcpStream};
 use std::{
     error::Error,
     net::SocketAddr,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
+use tokio::net::{TcpListener, TcpStream, UdpSocket};
 
 #[derive(Debug, Clone)]
 pub struct Metrics {
@@ -59,20 +59,28 @@ impl Metrics {
     pub fn print_stats(&self) {
         println!("=== SERVER METRICS ===");
         println!("Uptime: {:?}", self.uptime());
-        println!("Total connections: {}", self.connections_total.load(Ordering::Relaxed));
-        println!("Active connections: {}", self.connections_active.load(Ordering::Relaxed));
-        println!("Bytes received: {}", self.bytes_received.load(Ordering::Relaxed));
+        println!(
+            "Total connections: {}",
+            self.connections_total.load(Ordering::Relaxed)
+        );
+        println!(
+            "Active connections: {}",
+            self.connections_active.load(Ordering::Relaxed)
+        );
+        println!(
+            "Bytes received: {}",
+            self.bytes_received.load(Ordering::Relaxed)
+        );
         println!("Bytes sent: {}", self.bytes_sent.load(Ordering::Relaxed));
-        println!("Total errors: {}", self.errors_total.load(Ordering::Relaxed));
+        println!(
+            "Total errors: {}",
+            self.errors_total.load(Ordering::Relaxed)
+        );
         println!("======================");
     }
 }
 
-
-pub async fn run_tcp<F, Fut>(
-    addr: &str,
-    handler: F,
-) -> Result<(), Box<dyn Error>>
+pub async fn run_tcp<F, Fut>(addr: &str, handler: F) -> Result<(), Box<dyn Error>>
 where
     F: Fn(TcpStream, SocketAddr, Metrics) -> Fut + Send + Sync + 'static + Copy,
     Fut: std::future::Future<Output = Result<(), Box<dyn Error>>> + Send + 'static,
@@ -107,6 +115,59 @@ where
                 log_error!(client_addr, format!("Connection error: {}", e));
             }
         });
+    }
+}
+
+pub async fn run_udp<F, Fut>(addr: &str, handler: F) -> Result<(), Box<dyn Error>>
+where
+    F: Fn(Vec<u8>, SocketAddr, Arc<UdpSocket>, Metrics) -> Fut + Send + Sync + 'static + Copy,
+    Fut: std::future::Future<Output = Result<(), Box<dyn Error>>> + Send + 'static,
+{
+    let socket = UdpSocket::bind(addr).await?;
+    let socket = Arc::new(socket);
+    let metrics = Metrics::new();
+
+    log_info!(addr, "Server started");
+
+    let metrics_clone = metrics.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            metrics_clone.print_stats();
+        }
+    });
+
+    let mut buf = [0; 1024];
+    loop {
+        match socket.recv_from(&mut buf).await {
+            Ok((len, client_addr)) => {
+                metrics.bytes_received(len as u64);
+                log_msg_in!(client_addr, format!("UDP packet ({} bytes)", len));
+
+                let socket_clone = socket.clone();
+                let metrics_clone = metrics.clone();
+                let packet_data = buf[..len].to_vec();
+
+                tokio::spawn(async move {
+                    if let Err(e) = handler(
+                        packet_data,
+                        client_addr,
+                        socket_clone,
+                        metrics_clone.clone(),
+                    )
+                    .await
+                    {
+                        metrics_clone.error_occurred();
+                        log_error!(client_addr, format!("Handler error: {}", e));
+                    }
+                });
+            }
+            Err(e) => {
+                metrics.error_occurred();
+                log_error!(addr, format!("UDP recv error: {}", e));
+            }
+        }
     }
 }
 

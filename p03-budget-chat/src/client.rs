@@ -1,17 +1,22 @@
-use tokio::sync::mpsc::unbounded_channel;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::net::TcpStream;
-use std::{sync::Arc, net::SocketAddr};
 use crate::chat::ChatRoom;
 use crate::protocol::{format_join_message, format_leave_message, format_user_list, is_valid_name};
 use server::Metrics;
+use std::{net::SocketAddr, sync::Arc};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::net::TcpStream;
+use tokio::sync::mpsc::unbounded_channel;
 
-pub async fn handle_client(stream: TcpStream, chat_room: Arc<ChatRoom>, addr: SocketAddr, metrics: Metrics) {
+pub async fn handle_client(
+    stream: TcpStream,
+    chat_room: Arc<ChatRoom>,
+    addr: SocketAddr,
+    metrics: Metrics,
+) {
     let (tx, mut rx) = unbounded_channel();
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut message_buffer = Vec::<u8>::new();
-    
+
     let welcome_msg = b"Welcome to Nyx 3.0! What shall I call you?\n";
     if writer.write_all(welcome_msg).await.is_err() {
         server::log_error!(addr, "Failed to send welcome message");
@@ -19,7 +24,7 @@ pub async fn handle_client(stream: TcpStream, chat_room: Arc<ChatRoom>, addr: So
     }
     metrics.bytes_sent(welcome_msg.len() as u64);
     server::log_msg_out!(addr, "Welcome message sent");
-    
+
     let mut name = String::new();
     match reader.read_line(&mut name).await {
         Ok(0) => {
@@ -38,13 +43,13 @@ pub async fn handle_client(stream: TcpStream, chat_room: Arc<ChatRoom>, addr: So
     }
 
     let name = name.trim().to_string();
-    
+
     if !is_valid_name(&name) {
         server::log_warning!(addr, format!("Invalid name rejected: {}", name));
         let _ = writer.write_all(b"Invalid name. Disconnecting\n").await;
         return;
     }
-    
+
     // Send presence notification and user list
     server::log_info!(addr, format!("User '{}' joined", name));
     chat_room.join(name.clone(), tx).await;
@@ -52,7 +57,7 @@ pub async fn handle_client(stream: TcpStream, chat_room: Arc<ChatRoom>, addr: So
     chat_room.broadcast(&join_notif, Some(&name)).await;
     let list_notif = format_user_list(&chat_room.user_list(Some(&name)).await);
     let _ = writer.write_all(list_notif.as_bytes()).await;
-    
+
     // Main message loop
     loop {
         let mut buffer = [0u8; 1024];
@@ -66,7 +71,7 @@ pub async fn handle_client(stream: TcpStream, chat_room: Arc<ChatRoom>, addr: So
                     Ok(n) => {
                         metrics.bytes_received(n as u64);
                         message_buffer.extend_from_slice(&buffer[..n]);
-                        
+
                         while let Some(newline_pos) = message_buffer.iter().position(|&b| b == b'\n') {
                             let line_bytes = message_buffer.drain(..=newline_pos).collect::<Vec<u8>>();
                             let line = String::from_utf8_lossy(&line_bytes[..line_bytes.len() - 1]);

@@ -3,7 +3,9 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new() -> Self { Self { data: Vec::new() } }
+    pub fn new() -> Self {
+        Self { data: Vec::new() }
+    }
 
     pub fn insert(&mut self, timestamp: i32, price: i32) {
         self.data.push((timestamp, price));
@@ -19,10 +21,6 @@ impl Session {
             }
         }
 
-        if count == 0 {
-            0
-        } else {
-            (sum / count) as i32
-        }
+        if count == 0 { 0 } else { (sum / count) as i32 }
     }
 }

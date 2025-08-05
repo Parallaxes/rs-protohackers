@@ -1,7 +1,7 @@
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::sync::mpsc::UnboundedSender;
 
 pub struct ChatRoom {
     users: Mutex<HashMap<String, UnboundedSender<String>>>,

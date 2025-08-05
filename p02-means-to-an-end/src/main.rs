@@ -1,15 +1,14 @@
 mod protocol;
 mod session;
 
+use server::{Metrics, run_tcp};
 use std::{error::Error, net::SocketAddr};
-use server::{run_tcp, Metrics};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
 use protocol::{Message, serialize_mean};
 
 use crate::session::Session;
-
 
 async fn query_handler(
     stream: TcpStream,

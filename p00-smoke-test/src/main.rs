@@ -1,12 +1,15 @@
 use std::{error::Error, net::SocketAddr};
 
-use server::{run_tcp, Metrics};
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream};
+use server::{Metrics, run_tcp};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
 
 async fn echo_handler(
     mut stream: TcpStream,
     addr: SocketAddr,
-    metrics: Metrics
+    metrics: Metrics,
 ) -> Result<(), Box<dyn Error>> {
     server::log_info!(addr, "Echo handler started");
     let mut buf = [0u8; 1024];
@@ -26,7 +29,7 @@ async fn echo_handler(
                 server::log_msg_out!(addr, format!("{} byte echoed", n));
             }
             Err(e) => {
-                metrics.error_occurred();;
+                metrics.error_occurred();
                 server::log_error!(addr, format!("Read error: {}", e));
                 break;
             }
